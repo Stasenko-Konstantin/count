@@ -21,7 +21,8 @@ command line applications for recursive line counting in files
 requires [cargo](https://www.rust-lang.org/tools/install) for building executable file
 
 ```bash
-git clone git@github.com:Stasenko-Konstantin/count.git && cd count
+git clone git@github.com:Stasenko-Konstantin/count.git 
+cd count
 ./build.sh     # requires sudo for cp executable file to /bin
                # reopen terminal
 count -h                  
