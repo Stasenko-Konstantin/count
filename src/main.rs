@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use encoding_rs::UTF_8;
 use clap::Parser;
 
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 #[command(version, about)]
 struct Args {
     #[arg(short, long)]
