@@ -13,6 +13,7 @@ command line applications for recursive line counting in files
   - [ ] specifying that different formats should be counted as one
   - [ ] regular expression specification
 - [ ] result sorting in specific way
+- [x] print result as tree (-t=1 prints dirs in curr dir separately)
 - [x] loading message
 - [x] help message
 
@@ -37,6 +38,7 @@ Options:
   -p, --paths <PATHS>        
   -e, --ext <EXTENSION>      
   -E, --excludes <EXCLUDES>  Excludes specified file names and/or extensions
+  -t, --tree <TREE>          [default: 0]
   -h, --help                 Print help
   -V, --version              Print version
 ```
