@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Error, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 #[derive(Parser)]
@@ -70,8 +70,10 @@ fn make_tree(tree: &mut PBTree, paths: &mut Vec<PathBuf>, excludes: &Vec<String>
     paths.par_iter().for_each(|p| {
         if !is_path_need_exclude(p, &None, excludes) {
             if p.is_dir() || t_deep != 0 {
-                let mut t = PBTree::default();
-                t.curr_path = Some(p.clone());
+                let mut t = PBTree {
+                    curr_path: Some(p.clone()),
+                    ..Default::default()
+                };
                 let d = std::fs::read_dir(p);
                 let mut dv: Vec<PathBuf> = d.unwrap().map(|e| e.unwrap().path()).collect();
                 make_tree(&mut t, &mut dv, excludes, t_deep - 1);
@@ -135,7 +137,7 @@ fn print(
     Ok(())
 }
 
-fn is_path_need_exclude(path: &PathBuf, extension: &Option<String>, excludes: &[String]) -> bool {
+fn is_path_need_exclude(path: &Path, extension: &Option<String>, excludes: &[String]) -> bool {
     let file_name = path
         .file_name()
         .unwrap_or("".as_ref())
