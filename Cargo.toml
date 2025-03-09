@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 encoding_rs = "0.8"
 clap = { version = "4.0", features = ["derive"] }
+rayon = "1.10.0"

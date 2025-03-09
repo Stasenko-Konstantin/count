@@ -1,9 +1,11 @@
 use clap::Parser;
 use encoding_rs::UTF_8;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Error, Read};
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -22,7 +24,7 @@ struct Args {
     excludes: Vec<String>,
 
     #[arg(short, long, default_value_t = 0)]
-    tree: i32,
+    tree: u8,
 }
 
 #[derive(Default)]
@@ -44,48 +46,43 @@ fn main() -> Result<(), Error> {
     }
     make_tree(
         &mut t,
-        args.paths,
+        &mut args.paths,
         &args.excludes,
         if args.tree > 0 {
-            args.tree + 1
+            (args.tree + 1).into()
         } else {
-            args.tree
+            args.tree.into()
         },
-    )?;
-    walk(t, args.ext, &args.excludes, args.tree)?;
+    );
+    walk(t, args.ext, &args.excludes, args.tree.into())?;
     println!("\ndone!");
     Ok(())
 }
 
-fn make_tree(
-    tree: &mut PBTree,
-    paths: Vec<PathBuf>,
-    excludes: &Vec<String>,
-    t_deep: i32,
-) -> Result<(), Error> {
+fn make_tree(tree: &mut PBTree, paths: &mut Vec<PathBuf>, excludes: &Vec<String>, t_deep: i32) {
     if t_deep == -1 {
-        return Ok(());
+        return;
     }
-    let mut r_paths = Vec::new();
-    let mut r_nodes = Vec::new();
-    for p in paths {
-        if is_path_need_exclude(p.clone(), None, excludes.to_vec()) {
-            continue;
+
+    let m_nodes = Mutex::new(Vec::new());
+    let m_paths = Mutex::new(Vec::new());
+
+    paths.par_iter_mut().for_each(|p| {
+        if !is_path_need_exclude(p.clone(), None, excludes.to_vec()) {
+            if p.is_dir() || t_deep != 0 {
+                let mut t = PBTree::default();
+                t.curr_path = Some(p.clone());
+                let d = std::fs::read_dir(p.clone());
+                let mut dv: Vec<PathBuf> = d.unwrap().map(|e| e.unwrap().path()).collect();
+                make_tree(&mut t, &mut dv, excludes, t_deep - 1);
+                m_nodes.lock().unwrap().push(t);
+            }
+            m_paths.lock().unwrap().push(p.to_path_buf());
         }
-        if p.is_file() || t_deep == 0 {
-            r_paths.push(p);
-            continue;
-        }
-        let mut t = PBTree::default();
-        t.curr_path = Some(p.clone());
-        let d = std::fs::read_dir(p.clone());
-        let dv: Vec<PathBuf> = d?.map(|e| e.unwrap().path()).collect();
-        make_tree(&mut t, dv, excludes, t_deep - 1)?;
-        r_nodes.push(t);
-    }
-    tree.paths = r_paths;
-    tree.nodes = r_nodes;
-    Ok(())
+    });
+
+    tree.nodes = m_nodes.into_inner().unwrap();
+    tree.paths = m_paths.into_inner().unwrap();
 }
 
 fn walk(
