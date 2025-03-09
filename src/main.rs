@@ -54,7 +54,7 @@ fn main() -> Result<(), Error> {
             args.tree.into()
         },
     );
-    walk(t, args.ext, &args.excludes, args.tree.into())?;
+    walk(t, &args.ext, &args.excludes, args.tree.into())?;
     println!("\ndone!");
     Ok(())
 }
@@ -67,12 +67,12 @@ fn make_tree(tree: &mut PBTree, paths: &mut Vec<PathBuf>, excludes: &Vec<String>
     let m_nodes = Mutex::new(Vec::new());
     let m_paths = Mutex::new(Vec::new());
 
-    paths.par_iter_mut().for_each(|p| {
-        if !is_path_need_exclude(p.clone(), None, excludes.to_vec()) {
+    paths.par_iter().for_each(|p| {
+        if !is_path_need_exclude(p, &None, excludes) {
             if p.is_dir() || t_deep != 0 {
                 let mut t = PBTree::default();
                 t.curr_path = Some(p.clone());
-                let d = std::fs::read_dir(p.clone());
+                let d = std::fs::read_dir(p);
                 let mut dv: Vec<PathBuf> = d.unwrap().map(|e| e.unwrap().path()).collect();
                 make_tree(&mut t, &mut dv, excludes, t_deep - 1);
                 m_nodes.lock().unwrap().push(t);
@@ -87,23 +87,23 @@ fn make_tree(tree: &mut PBTree, paths: &mut Vec<PathBuf>, excludes: &Vec<String>
 
 fn walk(
     tree: PBTree,
-    ext: Option<String>,
+    ext: &Option<String>,
     excludes: &Vec<String>,
     t_deep: i32,
 ) -> Result<(), Error> {
+    let curr_path = &tree.curr_path;
     if !tree.paths.is_empty()
-        && tree.curr_path.clone().is_some()
-        && tree.curr_path.clone().unwrap() != std::env::current_dir()?
-        || t_deep == 0
+        && curr_path.is_some()
+        && (*curr_path.as_ref().unwrap() != std::env::current_dir()? || t_deep == 0)
     {
         print(
-            if tree.curr_path.is_none() {
+            if curr_path.is_none() {
                 String::new()
             } else {
-                tree.curr_path.clone().unwrap().display().to_string()
+                curr_path.as_ref().unwrap().display().to_string()
             },
             tree.paths,
-            ext.clone(),
+            ext,
             excludes,
         )?;
     }
@@ -112,7 +112,7 @@ fn walk(
         return Ok(());
     }
     for t in tree.nodes {
-        walk(t, ext.clone(), excludes, t_deep)?;
+        walk(t, ext, excludes, t_deep)?;
     }
     Ok(())
 }
@@ -120,19 +120,22 @@ fn walk(
 fn print(
     curr_path: String,
     paths: Vec<PathBuf>,
-    ext: Option<String>,
+    ext: &Option<String>,
     excludes: &[String],
 ) -> Result<(), Error> {
     let file_index = &mut Vec::<PathBuf>::new();
-    make_index(paths, file_index, ext, excludes.to_vec())?;
-    println!("\ncounting {} files in {}...", file_index.len(), curr_path,);
+    make_index(paths, file_index, ext, excludes)?;
+    if file_index.is_empty() {
+        return Ok(());
+    }
+    println!("\ncounting {} files in {}...", file_index.len(), curr_path);
     let mut hmap = HashMap::new();
     let res = count(file_index, &mut hmap)?;
     println!("{:#?}", res);
     Ok(())
 }
 
-fn is_path_need_exclude(path: PathBuf, extension: Option<String>, excludes: Vec<String>) -> bool {
+fn is_path_need_exclude(path: &PathBuf, extension: &Option<String>, excludes: &[String]) -> bool {
     let file_name = path
         .file_name()
         .unwrap_or("".as_ref())
@@ -149,31 +152,31 @@ fn is_path_need_exclude(path: PathBuf, extension: Option<String>, excludes: Vec<
     file_name.starts_with('.')
         || excludes.contains(&file_name)
         || excludes.contains(&ext)
-        || (extension.is_some() && extension.unwrap() != ext && ext != *"")
+        || (extension.is_some() && *extension.as_ref().unwrap() != ext && ext != *"")
 }
 
-fn make_index(
+fn make_index<'a>(
     paths: Vec<PathBuf>,
-    vec: &mut Vec<PathBuf>,
-    extension: Option<String>,
-    excludes: Vec<String>,
-) -> Result<&mut Vec<PathBuf>, Error> {
+    vec: &'a mut Vec<PathBuf>,
+    extension: &Option<String>,
+    excludes: &'a [String],
+) -> Result<&'a mut Vec<PathBuf>, Error> {
     for path in paths {
-        if is_path_need_exclude(path.clone(), None, excludes.clone()) {
+        if is_path_need_exclude(&path, &None, excludes) {
             continue;
         }
         if path.is_file() {
             vec.push(path);
             continue;
         }
-        let dir = std::fs::read_dir(path.clone())?;
+        let dir = std::fs::read_dir(path)?;
         for entry in dir {
             let entry = entry?;
-            if is_path_need_exclude(entry.path(), extension.clone(), excludes.clone()) {
+            if is_path_need_exclude(&entry.path(), extension, excludes) {
                 continue;
             }
             if entry.path().is_dir() {
-                make_index(vec![entry.path()], vec, extension.clone(), excludes.clone())?;
+                make_index(vec![entry.path()], vec, extension, excludes)?;
             }
             if !entry
                 .path()
