@@ -1,4 +1,4 @@
 #!/bin/sh
 
-cargo build --release
-sudo cp target/release/count /bin/count
+go build ./...
+sudo cp count /bin/count
